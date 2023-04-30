@@ -1,9 +1,15 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:offertelavoroflutter/blocs/favorite_job_offers/favorite_job_offers_bloc.dart';
 import 'package:offertelavoroflutter/models/job_offer.dart';
+import 'package:offertelavoroflutter/ui/components/action_button_save_job_offer.dart';
 import 'package:offertelavoroflutter/ui/components/shimmer.dart';
+import 'package:offertelavoroflutter/ui/pages/freelance/freelance_details_page.dart';
+import 'package:offertelavoroflutter/ui/pages/recruitment/recruitment_details_page.dart';
 
 class JobOfferCardComponent extends StatelessWidget {
-  final Recruitment? jobOffer;
+  final JobOffer? jobOffer;
 
   const JobOfferCardComponent({
     super.key,
@@ -12,28 +18,45 @@ class JobOfferCardComponent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: jobOffer == null ? null : () => print('card premuta!'),
-      child: Card(
-        shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10.0),
-      ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 20.0),
-          child: Column(
-            children: jobOffer == null ? contentCardShimmer : contentCard,
+    return BlocBuilder<FavoriteJobOffersBloc, FavoriteJobOffersState>(
+      builder:(context, state) {
+        return GestureDetector(
+          onTap: jobOffer == null ? null : () => {
+            if (jobOffer is Recruitment) {
+              Navigator.pushNamed(context, RecruitmentDetailsPage.route,
+                arguments: RecruitmentPageArgs(
+                  recruitment: jobOffer as Recruitment,
+                ),
+              )
+            } else if(jobOffer is Freelance) {
+              Navigator.pushNamed(context, FreelanceDetailsPage.route,
+                arguments: FreelancePageArgs(
+                  freelance: jobOffer as Freelance,
+                ),
+              )
+            }
+          },
+          child: Card(
+            shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10.0),
           ),
-        ),
-      ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 20.0),
+              child: Column(
+                children: jobOffer == null ? contentCardShimmer : [
+                  headerTop(jobOffer!),
+                  if(jobOffer is Recruitment)
+                  headerBottom(jobOffer! as Recruitment),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
     );
   }
 
-  List<Widget> get contentCard => [
-    headerTop(jobOffer!),
-    headerBottom(jobOffer!),
-  ];
-
-  Widget headerTop(Recruitment jobOffer) => ListTile(
+  Widget headerTop(JobOffer jobOffer) => ListTile(
     leading: Text(
       '${jobOffer.image}',
       style: const TextStyle(
@@ -47,19 +70,18 @@ class JobOfferCardComponent extends StatelessWidget {
         fontSize: 18.0
       ),
     ),
-    subtitle: Padding(
+    subtitle: jobOffer is Recruitment 
+      ? Padding(
       padding: const EdgeInsets.only(top: 8.0),
       child: Text(
-        jobOffer.pay ?? '',
+        jobOffer.pay?.firstOrNull?.text ?? '',
         style: const TextStyle(
           fontSize: 16.0,
         ),
       ),
-    ),
-    trailing: IconButton(
-      onPressed: () => print('Offerta salvata tra i preferiti :-)'),
-      icon: const Icon(Icons.bookmark_add_outlined),
-      iconSize: 30.0,
+    ) : null,
+    trailing: ActionButtonSaveJobOffer(
+      jobOffer: jobOffer,
     ),
   );
 

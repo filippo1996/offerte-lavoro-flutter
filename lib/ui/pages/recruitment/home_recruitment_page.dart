@@ -1,28 +1,39 @@
-import 'package:drop_down_list/model/selected_list_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:offertelavoroflutter/blocs/filter/filter_bloc.dart';
-import 'package:offertelavoroflutter/blocs/job_offer/job_offer_bloc.dart';
-import 'package:offertelavoroflutter/models/filter_job_offer.dart';
+import 'package:offertelavoroflutter/blocs/job_offers/job_offers_bloc.dart';
+import 'package:offertelavoroflutter/l10n/l10n.dart';
 import 'package:offertelavoroflutter/models/job_offer.dart';
+import 'package:offertelavoroflutter/repositories/notion/databases_repository.dart';
+import 'package:offertelavoroflutter/ui/components/app_bar.dart';
 import 'package:offertelavoroflutter/ui/components/bottom_loader.dart';
-import 'package:offertelavoroflutter/ui/components/drop_down_list.dart';
+import 'package:offertelavoroflutter/ui/components/empty_state.dart';
+import 'package:offertelavoroflutter/ui/components/filters.dart';
 import 'package:offertelavoroflutter/ui/components/job_offer_card.dart';
-import 'package:offertelavoroflutter/utils/extensions/string_extension.dart';
 
-class HomeRecruitmentPage extends StatefulWidget {
+class HomeRecruitmentPage extends StatelessWidget {
   const HomeRecruitmentPage({super.key});
+  static const String nameRequest = 'recruitment';
 
   @override
-  State<HomeRecruitmentPage> createState() => _HomeRecruitmentPageState();
+  Widget build(BuildContext context) {
+    return BlocProvider<JobOffersBloc>(
+      create: (context) => 
+      JobOffersBloc(databasesRepository: context.read<DatabasesRepository>())
+      ..fetchJobOffers(nameRequest), // Valutare se passargli il parametro per il tipo di database
+      child: const HomeRecruitmentView(),
+    );
+  }
 }
 
-class _HomeRecruitmentPageState extends State<HomeRecruitmentPage> {
-  //static const dbName = 'recruitment';
+class HomeRecruitmentView extends StatefulWidget {
+  const HomeRecruitmentView({super.key});
+
+  @override
+  State<HomeRecruitmentView> createState() => _HomeRecruitmentViewState();
+}
+
+class _HomeRecruitmentViewState extends State<HomeRecruitmentView> {
   final _scrollController = ScrollController();
-  final FilterJobOffer initFilter = const FilterJobOffer();
-  Direction sortDirection = Direction.ascending; // default value
-  final List<Sort> sorts = [];
 
   @override
   void initState() {
@@ -32,17 +43,78 @@ class _HomeRecruitmentPageState extends State<HomeRecruitmentPage> {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      controller: _scrollController,
-      slivers: [
-        // TODO: Implementare altre parti grafiche UI
-        sectionHeader(),
-        sectionFilter(),
-        SliverPadding(
-          padding: const EdgeInsets.all(16.0),
-          sliver: sectionJobOffersBuilder(),
-        )
-      ],
+    final l10n = context.l10n;
+
+    return Scaffold(
+      appBar: AppBarComponent(
+        title: l10n.recruitmentTitle,
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          context.read<JobOffersBloc>().add(const RefreshRequested());
+        },
+        child: MultiBlocListener(
+          listeners: [
+            BlocListener<JobOffersBloc, JobOffersState>(
+              listenWhen: (previous, current) => 
+                previous.status != current.status,
+              listener:(context, state) {
+                if (state.status == JobOffersStatus.failure) {
+                  ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.errorMessage(state.errorMessage)),
+                      backgroundColor: Colors.red,
+                    )
+                  );
+                }
+              },
+            ),
+            BlocListener<JobOffersBloc, JobOffersState>(
+              listenWhen: (previous, current) => 
+                current.status == JobOffersStatus.initial,
+              listener:(context, state) {
+                if (state.status == JobOffersStatus.initial) {
+                  // Eseguiamo il fetch ogni qual volta che lo stato si trova su initial
+                  context.read<JobOffersBloc>().add(const JobOffersSubscriptionRequested(
+                    nameRequest: HomeRecruitmentPage.nameRequest
+                  ));
+                }
+              },
+            )
+          ],
+          child: CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              // TODO: Implementare altre parti grafiche UI
+              //sectionHeader(),
+              const Filters(targetJobOffer: TargetJobOffer.recruitment),
+              SliverPadding(
+                padding: const EdgeInsets.all(16.0),
+                sliver: sectionJobOffersBuilder(l10n: l10n),
+              )
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: BlocBuilder<JobOffersBloc, JobOffersState>(
+        builder: (context, state) {
+          if (state.allActiveFilters.isNotEmpty) {
+            if (state.status == JobOffersStatus.success) {
+              return FloatingActionButton.extended(
+                onPressed: () {
+                  context.read<JobOffersBloc>().add(const JobOffersClearAllFilters());
+                },
+                backgroundColor: Colors.red,
+                label: Text(l10n.removeFilters),
+                icon: const Icon(Icons.delete),
+              );
+            }
+          }
+          return const SizedBox();
+        },
+      ),
     );
   }
 
@@ -55,7 +127,12 @@ class _HomeRecruitmentPageState extends State<HomeRecruitmentPage> {
   }
 
   void _onScroll() {
-    if (_isBottom) context.read<JobOfferBloc>().add(const FetchJobOfferEvent());
+    final bloc = context.read<JobOffersBloc>();
+    if (_isBottom && !bloc.loadingScrollPage && bloc.state.nextCursor != null) {
+      context.read<JobOffersBloc>().add(const JobOffersSubscriptionRequested(
+        nameRequest: HomeRecruitmentPage.nameRequest
+      ));
+    }
   }
 
   bool get _isBottom {
@@ -65,6 +142,7 @@ class _HomeRecruitmentPageState extends State<HomeRecruitmentPage> {
     return currentScroll >= (maxScroll * 0.9);
   }
 
+  /// Content header
   SliverToBoxAdapter sectionHeader() => SliverToBoxAdapter(
     child: Container(
       width: double.infinity,
@@ -73,150 +151,49 @@ class _HomeRecruitmentPageState extends State<HomeRecruitmentPage> {
     ),
   );
 
-  /// Methods that handle filters
-  void _handleEventSortBy(dynamic actualProperty) {
-    final Sort newSort = Sort(
-      property: actualProperty,
-      direction: sortDirection,
-    );
-    if (!sorts.contains(newSort)) {
-      sorts.add(newSort);
-    } else {
-      int idx = sorts.indexOf(newSort);
-      sorts[idx] = newSort;
-    }
-    setState(() {});
-    context.read<JobOfferBloc>().add(FetchWithParamsJobOfferEvent(
-        params: initFilter.copyWith(sorts: sorts),
-      )
-    );
-  }
-
-  void _handleEventSortDirection(dynamic actualDirection) {
-    sortDirection = Direction.values.byName(actualDirection);
-    setState(() {
-      sortDirection;
-    });
-  }
-
-  void _onRemoveAllSorts() {
-    setState(() {
-      sorts.clear();
-      context.read<JobOfferBloc>().add(FetchWithParamsJobOfferEvent(
-          params: initFilter.copyWith(sorts: sorts),
-        )
-      );
-    });
-  }
-
-  BlocBuilder sectionFilter() => BlocBuilder<FilterBloc, FilterState>(
-    builder: (context, state) {
-      if (state is FetchedFilterState) {
-        return SliverToBoxAdapter(
-          child: Column(
-            children: [
-              /*
-              ElevatedButton(
-                onPressed: () => context.read<JobOfferBloc>().add(const FetchWithParamsJobOfferEvent(
-                  filter: {
-                    "property": "Team",
-                    "select": {
-                      "equals": "Ibrido"
-                    }
-                  }
-                )),
-                child: const Text('Filter'),
-              ),
-              */
-              Row(
-                children: [
-                  // Sort by property
-                  DropDownList(
-                    onEvent: _handleEventSortBy,
-                    attributeName: 'Ordina da',
-                    icon: const Icon(Icons.list),
-                    enableMultipleSelection: false,
-                    listOfAttribute: state.sortingProperty.map(
-                      (name) => SelectedListItem(
-                        name: name,
-                        value: name,
-                        isSelected: false,
-                      ),
-                    ).toList(growable: false),
-                  ),
-                  // Sort type
-                  DropDownList(
-                    onEvent: _handleEventSortDirection,
-                    attributeName: 'Sort',
-                    icon: Icon(
-                      sortDirection == Direction.ascending
-                        ? Icons.north_rounded
-                        : Icons.south_rounded
-                    ),
-                    listOfAttribute: state.sortDirection.map(
-                      (name) => SelectedListItem(
-                        name: name.capitalize(),
-                        value: name,
-                        isSelected: false,
-                      ),
-                    ).toList(growable: false),
-                  ),
-                  // Delete all sort
-                  if (sorts.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: _onRemoveAllSorts,
-                      icon: const Icon(Icons.delete),
-                      label: Text('${sorts.length.toString()} sorts'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.red,
-                      ),
-                    )
-                ],
-              ),
-            ],
-          ),
-        );
-      }
-      return const SliverToBoxAdapter();
-    },
-  );
-
-  BlocBuilder sectionJobOffersBuilder() => BlocBuilder<JobOfferBloc, JobOfferState>(
+  /// Section list view card job offers
+  BlocBuilder sectionJobOffersBuilder({required AppLocalizations l10n}) => BlocBuilder<JobOffersBloc, JobOffersState>(
     builder:(context, state) {
-      if (state is FetchedJobOfferState) {
-        return SliverList(
-          delegate: SliverChildBuilderDelegate(
-            childCount: state.hasMore
-            ? state.jobOffers.length + 1
-            : state.jobOffers.length,
-            (context, index) => index >= state.jobOffers.length
-            ? const BottomLoaderComponent()
-            : Column(
-                children: [
-                  JobOfferCardComponent(jobOffer: state.jobOffers[index] as Recruitment),
-                  const SizedBox(height: 16.0),
+      if (state.jobOffers.isEmpty) {
+        if (state.status == JobOffersStatus.loading) {
+          return SliverList(
+            delegate: SliverChildBuilderDelegate(
+              childCount: 5,
+              (context, index) => Column(
+                children: const [
+                  JobOfferCardComponent(),
+                  SizedBox(height: 16.0),
                 ],
               ),
-          ),
-        );
-      } else if (state is ErrorJobOfferState) {
-        return Text('Errore -> ${state.errorMessage ?? 'Generic Error'}'); // Da sistemare
-      } else if (state is NoJobOfferState) {
-        return const Text('Nessuna pagina disponibile'); // Da sistemare
-      } else if (state is FetchingJobOfferState) {
-        return SliverList(
-          delegate: SliverChildBuilderDelegate(
-            childCount: 5,
-            (context, index) => Column(
-              children: const [
-                JobOfferCardComponent(),
-                SizedBox(height: 16.0),
+            ),
+          );
+        } else if (state.status != JobOffersStatus.success) {
+          return const SliverToBoxAdapter();
+        } else {
+          return SliverToBoxAdapter(
+            child: Center(
+              child: EmptyState(
+                message: l10n.jobOffersNotAvailable,
+              ),
+            ),
+          );
+        }
+      }
+      return SliverList(
+        delegate: SliverChildBuilderDelegate(
+          childCount: state.hasMore
+          ? state.jobOffers.length + 1
+          : state.jobOffers.length,
+          (context, index) => index >= state.jobOffers.length
+          ? const BottomLoaderComponent()
+          : Column(
+              children: [
+                JobOfferCardComponent(jobOffer: state.jobOffers[index] as Recruitment),
+                const SizedBox(height: 16.0),
               ],
             ),
-          ),
-        );
-      }
-      return const SliverToBoxAdapter();
+        ),
+      );
     },
   );
 }

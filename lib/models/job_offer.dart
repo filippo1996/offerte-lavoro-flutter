@@ -1,7 +1,11 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
+import 'package:offertelavoroflutter/models/color_serialiser.dart';
 import 'package:offertelavoroflutter/services/network/notion/dto/page_properties.dart';
 import 'package:offertelavoroflutter/ui/theme/colors.dart';
+import 'package:json_annotation/json_annotation.dart';
+
+part 'job_offer.g.dart';
 
 class Pagination extends Equatable {
   final List<JobOffer> results;
@@ -22,54 +26,69 @@ class Pagination extends Equatable {
   ];
 }
 
+enum TargetJobOffer { recruitment, freelance }
+
 /// Generic class job offer 
 class JobOffer extends Equatable {
+  final String id;
   final String? name;
   final String? image;
   final DateTime? posted;
   final bool archived;
   final String? candidature;
+  final TargetJobOffer target;
+  final String url;
 
   const JobOffer({
+    required this.id,
     required this.name,
     required this.image,
     required this.posted,
     required this.archived,
     required this.candidature,
+    required this.target,
+    required this.url,
   });
 
   @override
   List<Object?> get props => [
+    id,
     name,
     image,
     posted,
     archived,
-    candidature
+    candidature,
+    target,
+    url,
   ];
 
   @override
   String toString() => 
   '''
+  id: $id,
   name: $name,
   image: $image,
   posted: $posted,
   archived: $archived,
   candidature: $candidature,
+  target: $target,
+  url: $url,
   ''';
 }
 
 /// Class recruitment jobs
+@JsonSerializable()
 class Recruitment extends JobOffer {
-  final String? companyName;
+  final List<Description>? companyName;
   final String? urlWebsite;
-  final String? qualification;
+  final List<Description>? qualification;
   final Detail? seniority;
   final Detail? team;
   final Detail? contract;
-  final String? pay;
+  final List<Description>? pay;
   final String? ral;
   final List<Description>? offerDescription;
-  final String? locality;
+  final List<Description>? locality;
 
   const Recruitment({
     required this.companyName,
@@ -82,11 +101,14 @@ class Recruitment extends JobOffer {
     required this.ral,
     required this.offerDescription,
     required this.locality,
+    required super.id,
     required super.name, 
     required super.image,
     required super.posted, 
     required super.archived, 
     required super.candidature,
+    required super.target,
+    required super.url,
   });
 
   @override
@@ -102,6 +124,11 @@ class Recruitment extends JobOffer {
     offerDescription,
     locality,
   ]);
+
+  factory Recruitment.fromJson(Map<String, dynamic> json) => _$RecruitmentFromJson(json);
+
+  /// Connect the generated [_$RecruitmentToJson] function to the `toJson` method.
+  Map<String, dynamic> toJson() => _$RecruitmentToJson(this);
 
   @override
   String toString() => 
@@ -121,21 +148,25 @@ class Recruitment extends JobOffer {
 }
 
 /// class freelance jobs
+@JsonSerializable()
 class Freelance extends JobOffer {
-  final String? projectDescription;
-  final String? workRequest;
-  final String? relationshipType;
-  final String? timing;
-  final String? budget;
-  final String? paymentTimes;
-  final String? nda;
+  final List<Description>? projectDescription;
+  final List<Description>? workRequest;
+  final Detail? relationshipType;
+  final List<Description>? timing;
+  final List<Description>? budget;
+  final List<Description>? paymentTimes;
+  final Detail? nda;
 
   const Freelance({
+    required super.id,
     required super.name,
     required super.image,
     required super.posted,
     required super.archived,
     required super.candidature,
+    required super.target,
+    required super.url,
     required this.projectDescription,
     required this.workRequest,
     required this.relationshipType,
@@ -144,6 +175,11 @@ class Freelance extends JobOffer {
     required this.paymentTimes,
     required this.nda
   });
+
+  factory Freelance.fromJson(Map<String, dynamic> json) => _$FreelanceFromJson(json);
+
+  /// Connect the generated [_$FreelanceToJson] function to the `toJson` method.
+  Map<String, dynamic> toJson() => _$FreelanceToJson(this);
 
   @override
   List<Object?> get props => super.props..addAll([
@@ -170,6 +206,7 @@ class Freelance extends JobOffer {
   ''';
 }
 
+@JsonSerializable()
 class Description extends Equatable {
   final String text;
   final Annotation annotations;
@@ -191,10 +228,16 @@ class Description extends Equatable {
     ),
   );
 
+  factory Description.fromJson(Map<String, dynamic> json) => _$DescriptionFromJson(json);
+
+  /// Connect the generated [_$DescriptionToJson] function to the `toJson` method.
+  Map<String, dynamic> toJson() => _$DescriptionToJson(this);
+
   @override
   List<Object?> get props => [text, annotations];
 }
 
+@JsonSerializable()
 class Annotation extends Equatable {
   final bool bold;
   final bool italic;
@@ -212,6 +255,11 @@ class Annotation extends Equatable {
     required this.color,
   });
 
+  factory Annotation.fromJson(Map<String, dynamic> json) => _$AnnotationFromJson(json);
+
+  /// Connect the generated [_$AnnotationToJson] function to the `toJson` method.
+  Map<String, dynamic> toJson() => _$AnnotationToJson(this);
+
   @override
   List<Object?> get props => [
     bold,
@@ -223,8 +271,10 @@ class Annotation extends Equatable {
   ];
 }
 
+@JsonSerializable()
 class Detail extends Equatable {
   final String? text;
+  @ColorSerialiser()
   final Color? color;
 
   const Detail({
@@ -238,6 +288,11 @@ class Detail extends Equatable {
       ? ThemeColors.color[dto?.selectOption?.color]
       : ThemeColors.color['default'], // Default color
   );
+
+  factory Detail.fromJson(Map<String, dynamic> json) => _$DetailFromJson(json);
+
+  /// Connect the generated [_$DetailToJson] function to the `toJson` method.
+  Map<String, dynamic> toJson() => _$DetailToJson(this);
 
   @override
   List<Object?> get props => [text, color];

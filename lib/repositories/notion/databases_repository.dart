@@ -4,6 +4,7 @@ import 'package:offertelavoroflutter/models/job_offer.dart';
 import 'package:offertelavoroflutter/repositories/notion/mappers/freelance_page_mapper.dart';
 import 'package:offertelavoroflutter/repositories/notion/mappers/recruitment_page_mapper.dart';
 import 'package:offertelavoroflutter/services/network/notion/databases_service.dart';
+import 'package:offertelavoroflutter/utils/extensions/enum_extension.dart';
 
 class DatabasesRepository {
   final DatabasesService databasesService;
@@ -16,11 +17,19 @@ class DatabasesRepository {
     required this.freelancePageMapper,
   });
 
-  Future<Pagination> recruitments({Map<String, dynamic> params = const {}}) async {
+  Future<Pagination> getJobOffers({
+    required String offerType,
+    Map<String, dynamic> params = const {}
+  }) async {
     try {
-      final response = await databasesService.pages('recruitment', params: params);
+      final TargetJobOffer targetJobOffer = TargetJobOffer.values.byName(offerType);
+      final response = await databasesService.pages(targetJobOffer.toShortString(), params: params);
       return Pagination(
-        results: response.results.map( recruitmentPageMapper.toModel ).toList(growable: false),
+        results: response.results.map(
+          targetJobOffer == TargetJobOffer.recruitment
+          ? recruitmentPageMapper.toModel
+          : freelancePageMapper.toModel
+        ).toList(growable: false),
         nextCursor: response.nextCursor,
         hasMore: response.hasMore,
       );
@@ -30,16 +39,4 @@ class DatabasesRepository {
       throw RepositoryError();
     }
   }
-  /*
-  Future<List<Freelance>> freelance() async {
-    try {
-      final response = await databasesService.pages('freelance');
-      return response.map( freelancePageMapper.toModel ).toList(growable: false);
-    } on NetworkError catch (e) {
-      throw RepositoryError(e.reasonPhrase);
-    } catch(e) {
-      throw RepositoryError();
-    }
-  }
-  */
 }

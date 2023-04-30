@@ -1,6 +1,7 @@
 import 'package:drop_down_list/drop_down_list.dart';
 import 'package:drop_down_list/model/selected_list_item.dart';
 import 'package:flutter/material.dart';
+import 'package:offertelavoroflutter/l10n/l10n.dart';
 
 class DropDownList extends StatefulWidget {
   final List<SelectedListItem> listOfAttribute;
@@ -27,17 +28,18 @@ class _DropDownListState extends State<DropDownList> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return TextButton.icon(
       onPressed: () {
         FocusScope.of(context).unfocus();
-        onTextFieldTap();
+        onTextFieldTap(l10n);
       }, 
       icon: widget.icon,
       label: Text(widget.attributeName),
     );
   }
 
-  void onTextFieldTap() {
+  void onTextFieldTap(AppLocalizations l10n) {
     DropDownState(
       DropDown(
         isSearchVisible: false,
@@ -48,9 +50,9 @@ class _DropDownListState extends State<DropDownList> {
             fontSize: 20.0,
           ),
         ),
-        submitButtonChild: const Text(
-          'Fatto',
-          style: TextStyle(
+        submitButtonChild: Text(
+          l10n.done,
+          style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
@@ -67,7 +69,7 @@ class _DropDownListState extends State<DropDownList> {
           widget.onEvent(
             widget.enableMultipleSelection ? list : list.first
           );
-          showSnackBar(list.toString());
+          //showSnackBar(list.toString());
         },
         enableMultipleSelection: widget.enableMultipleSelection,
       ),
